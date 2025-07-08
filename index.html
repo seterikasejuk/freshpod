@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#ffffff" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Multi-Feed Podcast Player</title>
@@ -309,6 +311,11 @@
       const secs = Math.floor((remainingMs % 60000) / 1000);
       countdownDisplay.textContent = `⏱️ Break in: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("✅ FreshPod+ Service Worker registered"));
+ } 
   </script>
 </body>
 </html>
