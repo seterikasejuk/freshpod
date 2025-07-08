@@ -5,324 +5,337 @@
   <meta name="theme-color" content="#ffffff" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="icon.png" />
-  <title>🎧 FreshPod+ A FishRadio</title>
+  <title>Multi-Feed Podcast Player</title>
   <style>
     body {
       font-family: sans-serif;
-      background: #f9f9f9;
-      padding: 1rem;
+      padding: 20px;
+      background: #f5f5f5;
     }
-    input, button, textarea {
-      display: block;
-      margin: 1rem 0;
-      padding: 0.5rem;
+    input, button, select, textarea {
+      padding: 8px;
+      margin-bottom: 10px;
       width: 100%;
     }
-    audio {
-      width: 100%;
-      margin-top: 1rem;
+    ul {
+      list-style: none;
+      padding: 0;
     }
-    .played {
+    li {
+      background: #fff;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: move;
+    }
+    li.played {
+      background-color: #d3d3d3;
       text-decoration: line-through;
-      opacity: 0.6;
     }
-    .ticker {
-      font-size: 1.2em;
-      margin-bottom: 1rem;
+    #countdown {
+      font-weight: bold;
+      margin-top: 10px;
+      font-size: 1.1em;
+    }
+    #toast {
+      visibility: hidden;
+      min-width: 250px;
+      margin-left: -125px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 2px;
+      padding: 12px;
+      position: fixed;
+      z-index: 1;
+      left: 50%;
+      bottom: 30px;
+      font-size: 16px;
+    }
+    #toast.show {
+      visibility: visible;
+      -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+    @keyframes fadein {
+      from {bottom: 0; opacity: 0;}
+      to {bottom: 30px; opacity: 1;}
+    }
+    @keyframes fadeout {
+      from {bottom: 30px; opacity: 1;}
+      to {bottom: 0; opacity: 0;}
     }
   </style>
 </head>
 <body>
-  <h1>🎧 FreshPod+ A FishRadio 🐠</h1>
+  <h2>🎧 Multi-Feed Podcast Player + Tracker + Breaks + Drag & Drop</h2>
+  <textarea id="rssInput" placeholder="Paste multiple podcast RSS feeds here (one per line)"></textarea>
+  <button onclick="loadMultipleFeeds()">Load All Feeds</button>
+  <button onclick="shuffleEpisodes()">🔀 Shuffle</button>
+  <button onclick="clearHistory()">🧹 Clear Listening History</button>
+  <button onclick="exportHistory()">💾 Export Listening History</button>
+  <input type="file" id="importFile" accept="application/json" onchange="importHistory(event)" />
 
-  <h3>Upload Podcast Episodes</h3>
-  <input type="file" id="episodeUpload" accept="audio/mpeg" multiple />
+  <label for="intervalSelect">Break Interval:</label>
+  <select id="intervalSelect" onchange="updateBreakInterval()">
+    <option value="10">Every 10 minutes</option>
+    <option value="15">Every 15 minutes</option>
+    <option value="20" selected>Every 20 minutes</option>
+    <option value="30">Every 30 minutes</option>
+    <option value="60">Every 60 minutes</option>
+  </select>
 
-  <h3>Upload Local Breaks</h3>
   <input type="file" id="breakUpload" accept="audio/mpeg" multiple />
 
-  <h3>Add Podcast RSS Feeds</h3>
-  <textarea id="rssFeeds" rows="4" placeholder="Enter one RSS feed per line..."></textarea>
-  <button onclick="fetchFeeds()">📡 Fetch Episodes</button>
+  <div id="countdown">⏱️ Break in: --:--</div>
+  <div id="toast"></div>
 
-  <div class="ticker" id="breakTicker">⏱️ Next break in: --:--</div>
+  <ul id="episodeList"></ul>
 
-<h3>Set Break Interval (minutes)</h3>
-<input type="number" id="breakMinutes" min="1" value="10" />
-<button onclick="updateBreakInterval()">⏱️ Set Break Timer</button>
-
-  <h3>Episode Playlist</h3>
-  <ul id="playlist"></ul>
-  <button onclick="shuffleAndPlay()">▶️ Shuffle & Play</button>
-
-  <audio id="player" controls></audio>
+  <audio id="player" controls style="width: 100%; margin-top: 20px; transition: opacity 1s;"></audio>
 
   <script>
-    let episodeList = JSON.parse(localStorage.getItem("episodeList")) || [];
-    let breakList = []; // can't persist breaks
-    let playedEpisodes = new Set(JSON.parse(localStorage.getItem("playedEpisodes")) || []);
-    let breakCountdown;
-    let breakInterval = 10 * 60; // default 10 minutes
-    let breakTimer;
-    let currentEpisodeIndex = parseInt(localStorage.getItem("currentEpisodeIndex")) || 0;
-    let isInBreak = false;
-    let resumeTime = 0;
+    let breakInterval = 20 * 60 * 1000;
+    const breakFeeds = [
+      "https://www.omnycontent.com/d/playlist/9c074afa-3313-47e8-b802-a9f900789975/63048eda-2427-408a-b47c-ad5001293fca/6677d422-fd43-4aaa-be74-ad5001293fd8/podcast.rss",
+      "https://anchor.fm/s/d3f9488/podcast/rss",
+      "https://anchor.fm/s/2d2a1fe8/podcast/rss",
+      "https://anchor.fm/s/13f65d84/podcast/rss",
+      "https://rss.art19.com/curiosity-daily",
+      "https://feeds.npr.org/500005/podcast.xml"
+    ];
+    const defaultBreakAudio = "https://server13.mp3quran.net/husr/112.mp3";
 
     const player = document.getElementById("player");
-    const playlistUI = document.getElementById("playlist");
-    const ticker = document.getElementById("breakTicker");
-    const rssFeedsTextarea = document.getElementById("rssFeeds");
+    const countdownDisplay = document.getElementById("countdown");
+    const toast = document.getElementById("toast");
+    let timer;
+    let countdownInterval;
+    let currentEpisodeURL = "";
+    let remainingMs = breakInterval;
+    let episodeList = [];
+    let currentIndex = -1;
+    let skipBreak = false;
+    let customBreaks = [];
 
-    // Restore RSS feeds
-    rssFeedsTextarea.value = localStorage.getItem("rssFeeds") || "";
-
-    function saveState() {
-      localStorage.setItem("episodeList", JSON.stringify(episodeList));
-      localStorage.setItem("playedEpisodes", JSON.stringify([...playedEpisodes]));
-      localStorage.setItem("currentEpisodeIndex", currentEpisodeIndex);
-    }
-
-function renderPlaylist() {
-  playlistUI.innerHTML = "";
-
-episodeList.forEach((ep, idx) => {
-  const li = document.createElement("li");
-  li.textContent = ep.title;
-  li.className = playedEpisodes.has(ep.title) ? "played" : "";
-  li.draggable = true;
-  li.dataset.index = idx;
-
-  li.addEventListener("dragstart", (e) => {
-    e.dataTransfer.setData("text/plain", idx);
-  });
-
-  li.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    li.style.border = "2px dashed #aaa";
-  });
-
-  li.addEventListener("dragleave", () => {
-    li.style.border = "";
-  });
-
-  li.addEventListener("drop", (e) => {
-    e.preventDefault();
-    li.style.border = "";
-    const from = parseInt(e.dataTransfer.getData("text/plain"));
-    const to = parseInt(li.dataset.index);
-    moveEpisode(from, to);
-  });
-
-  li.onclick = () => playEpisode(idx);
-  playlistUI.appendChild(li);
-});
-}
-
-function setupEventListeners() {
-    document.getElementById("episodeUpload").addEventListener("change", (e) => {
-      const files = Array.from(e.target.files);
-      files.forEach(f => {
-        episodeList.push({ title: f.name, src: URL.createObjectURL(f), type: 'local' });
-      });
-      renderPlaylist();
-      saveState();
-    });
-
-    let hasAlertedBreakUpload = false;
-
-    document.getElementById("breakUpload").addEventListener("change", (e) => {
-      breakList = Array.from(e.target.files).map(f => URL.createObjectURL(f));
-      if (!hasAlertedBreakUpload) {
-      alert(`Uploaded ${breakList.length} break file(s).`);
-      hasAlertedBreakUpload = true;
-      setTimeout(() => hasAlertedBreakUpload = false, 3000);
-    }
-    });
-}
-
-function moveEpisode(fromIndex, toIndex) {
-  const moved = episodeList.splice(fromIndex, 1)[0];
-  episodeList.splice(toIndex, 0, moved);
-  renderPlaylist();
-  saveState();
-}
-
-function fetchFeeds() {
-  const feeds = document.getElementById("rssFeeds").value
-    .split("\n")
-    .map(f => f.trim())
-    .filter(Boolean);
-
-  const skipPlayed = true; // make this a toggle later if you want
-
-feeds.forEach(feedUrl => {
-  fetch(`https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`)
-    .then(res => res.json())
-    .then(data => {
-      console.log("Fetched data:", data);
-
-      if (!data.items || !Array.isArray(data.items)) {
-        alert("This feed returned no items: " + feedUrl);
-        return;
+    document.getElementById("breakUpload").addEventListener("change", event => {
+      const files = Array.from(event.target.files).filter(file => file.type === "audio/mpeg");
+      if (files.length > 0) {
+        customBreaks = files.map(file => URL.createObjectURL(file));
+        showToast(`🎧 Uploaded ${customBreaks.length} custom break(s)!`);
       }
+    });
 
-      data.items
-        .filter(item => {
-          const audioUrl = item.audio || item.enclosure?.url || item.enclosure?.link || item.link;
-          return audioUrl && audioUrl.endsWith(".mp3");
-        })
-        .filter(item => !playedEpisodes.has(item.title))
-        .slice(0, 5)
-        .forEach(item => {
-          const audioUrl = item.audio || item.enclosure?.url || item.enclosure?.link || item.link;
-          episodeList.push({
-            title: item.title,
-            src: audioUrl,
-            type: "feed",
+    function showToast(message) {
+      toast.textContent = message;
+      toast.className = "show";
+      setTimeout(() => {
+        toast.className = toast.className.replace("show", "");
+      }, 3000);
+    }
+
+    function clearHistory() {
+      localStorage.clear();
+      showToast("🧹 Listening history cleared");
+      renderEpisodeList();
+    }
+
+    function exportHistory() {
+      const history = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        history[key] = localStorage.getItem(key);
+      }
+      const blob = new Blob([JSON.stringify(history, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "listening_history.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importHistory(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          for (const key in data) {
+            localStorage.setItem(key, data[key]);
+          }
+          showToast("✅ History imported!");
+          renderEpisodeList();
+        } catch (err) {
+          showToast("❌ Invalid file");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function loadMultipleFeeds() {
+      const input = document.getElementById("rssInput").value;
+      const urls = input.split(/\n|,/).map(url => url.trim()).filter(Boolean);
+      episodeList = [];
+      document.getElementById("episodeList").innerHTML = "";
+
+      Promise.all(urls.map(url => {
+        const apiUrl = `https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`;
+        return fetch(apiUrl).then(res => res.json()).catch(() => null);
+      })).then(results => {
+        results.forEach(data => {
+          if (!data || !data.items) return;
+          const source = data.feed.title;
+          data.items.slice(0, 10).forEach(item => {
+            item.source = source;
+            episodeList.push(item);
           });
         });
 
-      renderPlaylist();
-      saveState();
-    })
-    .catch(err => {
-      console.error("RSS fetch failed:", err);
-      alert("Failed to load RSS feed: " + feedUrl);
-    });
-});
-
-}
-
-
-    function shuffleAndPlay() {
-  const unplayed = episodeList.filter(ep => !playedEpisodes.has(ep.title));
-  if (unplayed.length === 0) {
-    alert("🎉 You've played all episodes!");
-    return;
-  }
-
-      episodeList = episodeList.sort(() => Math.random() - 0.5);
-      currentEpisodeIndex = 0;
-      playEpisode(currentEpisodeIndex);
-      startBreakTicker();
-      player.play().catch(() => {
-        alert("Tap anywhere to start playback due to mobile browser restrictions.");
+        renderEpisodeList();
       });
-      saveState();
     }
 
-    function playEpisode(index) {
-      if (!episodeList[index]) return;
-      currentEpisodeIndex = index;
-      player.src = episodeList[index].src;
-      player.play();
-      saveState();
-    }
-
-player.addEventListener("ended", () => {
-  if (isInBreak) {
-    isInBreak = false;
-
-    ticker.textContent = `⏱️ Next break in: ${formatTime(breakInterval)}`; // Reset timer text
-
-    // Add fade + resume logic AFTER episode loads
-    player.addEventListener("loadedmetadata", function resumeWithFadeOnce() {
-      player.currentTime = resumeTime;
-      fadeInAudio(player);
-      player.removeEventListener("loadedmetadata", resumeWithFadeOnce);
-    });
-
-    playEpisode(currentEpisodeIndex); // 🔄 this should come AFTER adding the listener
-
-    startBreakTicker();
-
-  } else {
-    playedEpisodes.add(episodeList[currentEpisodeIndex].title);
-    currentEpisodeIndex++;
-    if (currentEpisodeIndex < episodeList.length) {
-      playEpisode(currentEpisodeIndex);
-    }
-    renderPlaylist();
-    saveState();
-  }
-});
-
-function updateBreakInterval() {
-  const minutes = parseInt(document.getElementById("breakMinutes").value);
-  if (!isNaN(minutes) && minutes > 0) {
-    breakInterval = minutes * 60;
-    breakCountdown = breakInterval;
-    ticker.textContent = `⏱️ Next break in: ${formatTime(breakCountdown)}`;
-    startBreakTicker(); // restart ticker
-  }
-}
-
-    function startBreakTicker() {
-      clearInterval(breakTimer);
-      breakCountdown = breakInterval;
-      ticker.textContent = `⏱️ Next break in: ${formatTime(breakCountdown)}`;
-      breakTimer = setInterval(() => {
-        breakCountdown--;
-        ticker.textContent = `⏱️ Next break in: ${formatTime(breakCountdown)}`;
-        if (breakCountdown <= 0) {
-          playBreak();
-          breakCountdown = breakInterval;
+    function renderEpisodeList() {
+      const list = document.getElementById("episodeList");
+      list.innerHTML = "";
+      episodeList.forEach((episode, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${episode.title} (${episode.source})`;
+        li.draggable = true;
+        li.dataset.index = index;
+        const key = episode.enclosure.link;
+        if (localStorage.getItem(key + "_played")) {
+          li.classList.add("played");
         }
+        li.ondragstart = e => e.dataTransfer.setData("text/plain", index);
+        li.ondragover = e => e.preventDefault();
+        li.ondrop = e => {
+          e.preventDefault();
+          const fromIndex = +e.dataTransfer.getData("text/plain");
+          const toIndex = +li.dataset.index;
+          [episodeList[fromIndex], episodeList[toIndex]] = [episodeList[toIndex], episodeList[fromIndex]];
+          renderEpisodeList();
+        };
+        li.onclick = () => playEpisode(episode.enclosure.link, index);
+        list.appendChild(li);
+      });
+    }
+
+    function shuffleEpisodes() {
+      for (let i = episodeList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [episodeList[i], episodeList[j]] = [episodeList[j], episodeList[i]];
+      }
+      renderEpisodeList();
+    }
+
+    function playEpisode(url, index) {
+      currentIndex = index;
+      currentEpisodeURL = url;
+      const resumeTime = parseFloat(localStorage.getItem(url + "_time")) || 0;
+      player.src = url;
+      player.onloadedmetadata = () => {
+        player.currentTime = resumeTime;
+        player.play();
+      };
+      skipBreak = false;
+      resetBreakTimer();
+
+      player.onended = () => {
+        skipBreak = true;
+        localStorage.setItem(url + "_played", true);
+        renderEpisodeList();
+        if (currentIndex + 1 < episodeList.length) {
+          const nextEp = episodeList[currentIndex + 1];
+          playEpisode(nextEp.enclosure.link, currentIndex + 1);
+        } else {
+          showToast("🎉 You've reached the end of the playlist!");
+        }
+      };
+    }
+
+    setInterval(() => {
+      if (!player.paused && currentEpisodeURL) {
+        localStorage.setItem(currentEpisodeURL + "_time", player.currentTime);
+      }
+    }, 5000);
+
+    function resetBreakTimer() {
+      if (timer) clearTimeout(timer);
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      remainingMs = breakInterval;
+      updateCountdown();
+      countdownInterval = setInterval(() => {
+        remainingMs -= 1000;
+        updateCountdown();
+        if (remainingMs <= 0) clearInterval(countdownInterval);
       }, 1000);
+
+      timer = setTimeout(() => {
+        if (!skipBreak) insertBreakEpisode();
+      }, breakInterval);
     }
 
-function fadeOutAudio(audio, callback, step = 0.05, interval = 100) {
-  let fade = setInterval(() => {
-    if (audio.volume > step) {
-      audio.volume -= step;
-    } else {
-      clearInterval(fade);
-      audio.volume = 0;
-      callback(); // e.g. playBreak()
-    }
-  }, interval);
-}
+    function insertBreakEpisode() {
+      const resumeURL = currentEpisodeURL;
+      const resumeTime = player.currentTime;
 
-function fadeInAudio(audio, targetVolume = 1, step = 0.05, interval = 100) {
-  audio.volume = 0;
-  let fade = setInterval(() => {
-    if (audio.volume < targetVolume - step) {
-      audio.volume += step;
-    } else {
-      audio.volume = targetVolume;
-      clearInterval(fade);
-    }
-  }, interval);
-}
+      const playResume = () => {
+        player.style.opacity = 1;
+        player.src = resumeURL;
+        player.onloadedmetadata = () => {
+          player.currentTime = resumeTime;
+          player.play();
+          resetBreakTimer();
+        };
+      };
 
+      player.pause();
+      player.style.opacity = 0.3;
 
-    function playBreak() {
-      if (!breakList.length) return;
-      resumeTime = player.currentTime;
-      isInBreak = true;
+      if (customBreaks.length > 0) {
+        const breakSrc = customBreaks[Math.floor(Math.random() * customBreaks.length)];
+        player.src = breakSrc;
+        player.play();
+        player.onended = playResume;
+        return;
+      }
 
-      clearInterval(breakTimer);
-      ticker.textContent = `🎵 Taking a break... relaxing fish sounds...`;
+      const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
+      const apiUrl = `https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`;
 
-      const randomBreak = breakList[Math.floor(Math.random() * breakList.length)];
-
-    fadeOutAudio(player, () => {
-      player.src = randomBreak;
-      player.play();
-      fadeInAudio(player);
-    });
-    }
-
-    function formatTime(seconds) {
-      const min = Math.floor(seconds / 60).toString().padStart(2, '0');
-      const sec = (seconds % 60).toString().padStart(2, '0');
-      return `${min}:${sec}`;
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          const episodes = data.items.filter(item => item.enclosure && item.enclosure.link.endsWith('.mp3'));
+          const breakAudio = episodes.length > 0 ? episodes[Math.floor(Math.random() * episodes.length)].enclosure.link : defaultBreakAudio;
+          player.src = breakAudio;
+          player.play();
+          player.onended = playResume;
+        })
+        .catch(() => {
+          player.src = defaultBreakAudio;
+          player.play();
+          player.onended = playResume;
+        });
     }
 
-    // On page load
-    renderPlaylist();
-    startBreakTicker();
+
+    function updateBreakInterval() {
+      const minutes = parseInt(document.getElementById("intervalSelect").value);
+      breakInterval = minutes * 60 * 1000;
+      resetBreakTimer();
+    }
+
+    function updateCountdown() {
+      const mins = Math.floor(remainingMs / 60000);
+      const secs = Math.floor((remainingMs % 60000) / 1000);
+      countdownDisplay.textContent = `⏱️ Break in: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
