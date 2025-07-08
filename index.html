@@ -126,9 +126,15 @@ episodeList.forEach((ep, idx) => {
       saveState();
     });
 
+    let hasAlertedBreakUpload = false;
+
     document.getElementById("breakUpload").addEventListener("change", (e) => {
       breakList = Array.from(e.target.files).map(f => URL.createObjectURL(f));
+    if (!hasAlertBreakUpload) {
       alert(`Uploaded ${breakList.length} break file(s).`);
+      hasAlertedBreakUpload = true;
+      setTimeout(() => hasAlertedBreakUpload = false, 3000);
+    }
     });
 }
 
@@ -146,7 +152,7 @@ function fetchFeeds() {
     .filter(Boolean);
 
   feeds.forEach(feedUrl => {
-    fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`)
+       fetch(`https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`)
       .then(res => res.json())
       .then(data => {
         if (data.status !== "ok") {
@@ -156,20 +162,25 @@ function fetchFeeds() {
 
         const items = data.items;
 
-        data.items.slice(0, 5).forEach(item => {
-          // Some feeds use enclosure, some just use link
-          const audioUrl =
-            item.enclosure?.link || item.enclosure?.url || item.link;
+const skipPlayed = true; // make this a toggle later if you want
 
-          // Skip if there's no audio
-          if (!audioUrl || !audioUrl.endsWith(".mp3")) return;
+data.items
+  .filter(item => {
+    const audioUrl = item.enclosure?.link || item.enclosure?.url || item.link;
+    return audioUrl && audioUrl.endsWith(".mp3");
+  })
+  .filter(item => skipPlayed ? !playedEpisodes.has(item.title) : true)
+  .slice(0, 5)
+  .forEach(item => {
+    const audioUrl = item.enclosure?.link || item.enclosure?.url || item.link;
 
-          episodeList.push({
-            title: item.title,
-            src: audioUrl,
-            type: "feed",
-          });
-        });
+    episodeList.push({
+      title: item.title,
+      src: audioUrl,
+      type: "feed",
+    });
+  });
+
 
         renderPlaylist();
         saveState();
@@ -183,6 +194,12 @@ function fetchFeeds() {
 
 
     function shuffleAndPlay() {
+  const unplayed = episodeList.filter(ep => !playedEpisodes.has(ep.title));
+  if (unplayed.length === 0) {
+    alert("🎉 You've played all episodes!");
+    return;
+  }
+
       episodeList = episodeList.sort(() => Math.random() - 0.5);
       currentEpisodeIndex = 0;
       playEpisode(currentEpisodeIndex);
