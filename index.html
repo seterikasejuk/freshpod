@@ -6,7 +6,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="icon.png" />
-  <title>🎧 FreshPod+ - Persistent FishRadio</title>
+  <title>🎧 FreshPod+ A FishRadio</title>
   <style>
     body {
       font-family: sans-serif;
@@ -34,19 +34,23 @@
   </style>
 </head>
 <body>
-  <h1>🎧 FreshPod+ - Persistent FishRadio 🐠</h1>
+  <h1>🎧 FreshPod+ A FishRadio 🐠</h1>
 
-  <h3>Upload Podcast Episodes (local files not persistent)</h3>
+  <h3>Upload Podcast Episodes</h3>
   <input type="file" id="episodeUpload" accept="audio/mpeg" multiple />
 
-  <h3>Upload Local Breaks (not persistent)</h3>
+  <h3>Upload Local Breaks</h3>
   <input type="file" id="breakUpload" accept="audio/mpeg" multiple />
 
   <h3>Add Podcast RSS Feeds</h3>
   <textarea id="rssFeeds" rows="4" placeholder="Enter one RSS feed per line..."></textarea>
   <button onclick="fetchFeeds()">📡 Fetch Episodes</button>
 
-  <div class="ticker" id="breakTicker">⏱️ Next break in: 10:00</div>
+  <div class="ticker" id="breakTicker">⏱️ Next break in: --:--</div>
+
+<h3>Set Break Interval (minutes)</h3>
+<input type="number" id="breakMinutes" min="1" value="10" />
+<button onclick="updateBreakInterval()">⏱️ Set Break Timer</button>
 
   <h3>Episode Playlist</h3>
   <ul id="playlist"></ul>
@@ -58,8 +62,7 @@
     let episodeList = JSON.parse(localStorage.getItem("episodeList")) || [];
     let breakList = []; // can't persist breaks
     let playedEpisodes = new Set(JSON.parse(localStorage.getItem("playedEpisodes")) || []);
-    let breakInterval = 10 * 60; // 10 minutes in seconds
-    let breakCountdown = breakInterval;
+    let breakCountdown;
     let breakTimer;
     let currentEpisodeIndex = parseInt(localStorage.getItem("currentEpisodeIndex")) || 0;
     let isInBreak = false;
@@ -79,16 +82,37 @@
       localStorage.setItem("currentEpisodeIndex", currentEpisodeIndex);
     }
 
-    function renderPlaylist() {
-      playlistUI.innerHTML = "";
-      episodeList.forEach((ep, idx) => {
-        const li = document.createElement("li");
-        li.textContent = ep.title;
-        li.className = playedEpisodes.has(ep.title) ? "played" : "";
-        li.onclick = () => playEpisode(idx);
-        playlistUI.appendChild(li);
-      });
-    }
+episodeList.forEach((ep, idx) => {
+  const li = document.createElement("li");
+  li.textContent = ep.title;
+  li.className = playedEpisodes.has(ep.title) ? "played" : "";
+  li.draggable = true;
+  li.dataset.index = idx;
+
+  li.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/plain", idx);
+  });
+
+  li.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    li.style.border = "2px dashed #aaa";
+  });
+
+  li.addEventListener("dragleave", () => {
+    li.style.border = "";
+  });
+
+  li.addEventListener("drop", (e) => {
+    e.preventDefault();
+    li.style.border = "";
+    const from = parseInt(e.dataTransfer.getData("text/plain"));
+    const to = parseInt(li.dataset.index);
+    moveEpisode(from, to);
+  });
+
+  li.onclick = () => playEpisode(idx);
+  playlistUI.appendChild(li);
+});
 
     document.getElementById("episodeUpload").addEventListener("change", (e) => {
       const files = Array.from(e.target.files);
@@ -103,6 +127,13 @@
       breakList = Array.from(e.target.files).map(f => URL.createObjectURL(f));
       alert(`Uploaded ${breakList.length} break file(s).`);
     });
+
+function moveEpisode(fromIndex, toIndex) {
+  const moved = episodeList.splice(fromIndex, 1)[0];
+  episodeList.splice(toIndex, 0, moved);
+  renderPlaylist();
+  saveState();
+}
 
     function fetchFeeds() {
       const feeds = rssFeedsTextarea.value.split("\n").map(f => f.trim()).filter(Boolean);
@@ -149,6 +180,8 @@ player.addEventListener("ended", () => {
   if (isInBreak) {
     isInBreak = false;
 
+    ticker.textContent = `⏱️ Next break in: ${formatTime(breakInterval)}`; // Reset timer text
+
     // Add fade + resume logic AFTER episode loads
     player.addEventListener("loadedmetadata", function resumeWithFadeOnce() {
       player.currentTime = resumeTime;
@@ -157,6 +190,8 @@ player.addEventListener("ended", () => {
     });
 
     playEpisode(currentEpisodeIndex); // 🔄 this should come AFTER adding the listener
+
+    startBreakTicker();
 
   } else {
     playedEpisodes.add(episodeList[currentEpisodeIndex].title);
@@ -169,6 +204,15 @@ player.addEventListener("ended", () => {
   }
 });
 
+function updateBreakInterval() {
+  const minutes = parseInt(document.getElementById("breakMinutes").value);
+  if (!isNaN(minutes) && minutes > 0) {
+    breakInterval = minutes * 60;
+    breakCountdown = breakInterval;
+    ticker.textContent = `⏱️ Next break in: ${formatTime(breakCountdown)}`;
+    startBreakTicker(); // restart ticker
+  }
+}
 
     function startBreakTicker() {
       clearInterval(breakTimer);
@@ -213,6 +257,10 @@ function fadeInAudio(audio, targetVolume = 1, step = 0.05, interval = 100) {
       if (!breakList.length) return;
       resumeTime = player.currentTime;
       isInBreak = true;
+
+      clearInterval(breakTimer);
+      ticker.textContent = `🎵 Taking a break... relaxing fish sounds...`;
+
       const randomBreak = breakList[Math.floor(Math.random() * breakList.length)];
 
     fadeOutAudio(player, () => {
