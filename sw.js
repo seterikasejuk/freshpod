@@ -1,7 +1,15 @@
 self.addEventListener("install", e => {
-  console.log("FreshPod+ Service Worker Installed");
+  e.waitUntil(
+    caches.open("freshpod-v1").then(cache =>
+      cache.addAll([
+        "/", "/index.html", "/style.css", "/script.js", "/icon.png"
+      ])
+    )
+  );
 });
 
 self.addEventListener("fetch", e => {
-  // You can cache stuff here later!
+  e.respondWith(
+    caches.match(e.request).then(res => res || fetch(e.request))
+  );
 });
