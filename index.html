@@ -146,7 +146,7 @@ function fetchFeeds() {
     .filter(Boolean);
 
   feeds.forEach(feedUrl => {
-    fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`)
+    fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`)
       .then(res => res.json())
       .then(data => {
         if (data.status !== "ok") {
