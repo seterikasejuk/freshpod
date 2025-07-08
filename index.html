@@ -173,7 +173,7 @@
       document.getElementById("episodeList").innerHTML = "";
 
       Promise.all(urls.map(url => {
-        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
         return fetch(apiUrl).then(res => res.json()).catch(() => null);
       })).then(results => {
         results.forEach(data => {
