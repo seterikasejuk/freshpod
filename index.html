@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#ffffff" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Multi-Feed Podcast Player</title>
@@ -183,7 +181,7 @@
       document.getElementById("episodeList").innerHTML = "";
 
       Promise.all(urls.map(url => {
-        const apiUrl = `https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`;
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
         return fetch(apiUrl).then(res => res.json()).catch(() => null);
       })).then(results => {
         results.forEach(data => {
@@ -307,7 +305,7 @@
       }
 
       const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
-      const apiUrl = `https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`;
+      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
 
       fetch(apiUrl)
         .then(res => res.json())
@@ -336,12 +334,7 @@
       const mins = Math.floor(remainingMs / 60000);
       const secs = Math.floor((remainingMs % 60000) / 1000);
       countdownDisplay.textContent = `⏱️ Break in: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
-      .then(() => console.log("✅ FreshPod+ Service Worker registered"));
-  }
-
+    }
   </script>
 </body>
 </html>
