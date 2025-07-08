@@ -63,6 +63,7 @@
     let breakList = []; // can't persist breaks
     let playedEpisodes = new Set(JSON.parse(localStorage.getItem("playedEpisodes")) || []);
     let breakCountdown;
+    let breakInterval = 10 * 60; // default 10 minutes
     let breakTimer;
     let currentEpisodeIndex = parseInt(localStorage.getItem("currentEpisodeIndex")) || 0;
     let isInBreak = false;
@@ -116,7 +117,9 @@ episodeList.forEach((ep, idx) => {
   li.onclick = () => playEpisode(idx);
   playlistUI.appendChild(li);
 });
+}
 
+function setupEventListeners() {
     document.getElementById("episodeUpload").addEventListener("change", (e) => {
       const files = Array.from(e.target.files);
       files.forEach(f => {
@@ -130,7 +133,7 @@ episodeList.forEach((ep, idx) => {
 
     document.getElementById("breakUpload").addEventListener("change", (e) => {
       breakList = Array.from(e.target.files).map(f => URL.createObjectURL(f));
-    if (!hasAlertBreakUpload) {
+      if (!hasAlertedBreakUpload) {
       alert(`Uploaded ${breakList.length} break file(s).`);
       hasAlertedBreakUpload = true;
       setTimeout(() => hasAlertedBreakUpload = false, 3000);
@@ -151,45 +154,44 @@ function fetchFeeds() {
     .map(f => f.trim())
     .filter(Boolean);
 
-  feeds.forEach(feedUrl => {
-       fetch(`https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== "ok") {
-          alert("Failed to load RSS feed: " + feedUrl);
-          return;
-        }
+  const skipPlayed = true; // make this a toggle later if you want
 
-        const items = data.items;
+feeds.forEach(feedUrl => {
+  fetch(`https://0ec86150-a560-4df1-91f9-1e02a6763c87-00-3t5goonczztrn.sisko.replit.dev/rss?url=${encodeURIComponent(feedUrl)}`)
+    .then(res => res.json())
+    .then(data => {
+      console.log("Fetched data:", data);
 
-const skipPlayed = true; // make this a toggle later if you want
+      if (!data.items || !Array.isArray(data.items)) {
+        alert("This feed returned no items: " + feedUrl);
+        return;
+      }
 
-data.items
-  .filter(item => {
-    const audioUrl = item.enclosure?.link || item.enclosure?.url || item.link;
-    return audioUrl && audioUrl.endsWith(".mp3");
-  })
-  .filter(item => skipPlayed ? !playedEpisodes.has(item.title) : true)
-  .slice(0, 5)
-  .forEach(item => {
-    const audioUrl = item.enclosure?.link || item.enclosure?.url || item.link;
+      data.items
+        .filter(item => {
+          const audioUrl = item.audio || item.enclosure?.url || item.enclosure?.link || item.link;
+          return audioUrl && audioUrl.endsWith(".mp3");
+        })
+        .filter(item => !playedEpisodes.has(item.title))
+        .slice(0, 5)
+        .forEach(item => {
+          const audioUrl = item.audio || item.enclosure?.url || item.enclosure?.link || item.link;
+          episodeList.push({
+            title: item.title,
+            src: audioUrl,
+            type: "feed",
+          });
+        });
 
-    episodeList.push({
-      title: item.title,
-      src: audioUrl,
-      type: "feed",
+      renderPlaylist();
+      saveState();
+    })
+    .catch(err => {
+      console.error("RSS fetch failed:", err);
+      alert("Failed to load RSS feed: " + feedUrl);
     });
-  });
+});
 
-
-        renderPlaylist();
-        saveState();
-      })
-      .catch(err => {
-        console.error("RSS fetch failed:", err);
-        alert("Failed to load RSS feed: " + feedUrl);
-      });
-  });
 }
 
 
