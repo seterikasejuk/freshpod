@@ -94,14 +94,6 @@
 
   <script>
     let breakInterval = 20 * 60 * 1000;
-    const breakFeeds = [
-      "https://www.omnycontent.com/d/playlist/9c074afa-3313-47e8-b802-a9f900789975/63048eda-2427-408a-b47c-ad5001293fca/6677d422-fd43-4aaa-be74-ad5001293fd8/podcast.rss",
-      "https://anchor.fm/s/d3f9488/podcast/rss",
-      "https://anchor.fm/s/2d2a1fe8/podcast/rss",
-      "https://anchor.fm/s/13f65d84/podcast/rss",
-      "https://rss.art19.com/curiosity-daily",
-      "https://feeds.npr.org/500005/podcast.xml"
-    ];
     const defaultBreakAudio = "https://server13.mp3quran.net/husr/112.mp3";
 
     const player = document.getElementById("player");
@@ -280,48 +272,30 @@
     }
 
     function insertBreakEpisode() {
-      const resumeURL = currentEpisodeURL;
-      const resumeTime = player.currentTime;
+  const resumeURL = currentEpisodeURL;
+  const resumeTime = player.currentTime;
 
-      const playResume = () => {
-        player.style.opacity = 1;
-        player.src = resumeURL;
-        player.onloadedmetadata = () => {
-          player.currentTime = resumeTime;
-          player.play();
-          resetBreakTimer();
-        };
-      };
+  const playResume = () => {
+    player.style.opacity = 1;
+    player.src = resumeURL;
+    player.onloadedmetadata = () => {
+      player.currentTime = resumeTime;
+      player.play();
+      resetBreakTimer();
+    };
+  };
 
-      player.pause();
-      player.style.opacity = 0.3;
+  player.pause();
+  player.style.opacity = 0.3;
 
-      if (customBreaks.length > 0) {
-        const breakSrc = customBreaks[Math.floor(Math.random() * customBreaks.length)];
-        player.src = breakSrc;
-        player.play();
-        player.onended = playResume;
-        return;
-      }
+  const breakSrc = customBreaks.length > 0
+    ? customBreaks[Math.floor(Math.random() * customBreaks.length)]
+    : defaultBreakAudio;
 
-      const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
-
-      fetch(apiUrl)
-        .then(res => res.json())
-        .then(data => {
-          const episodes = data.items.filter(item => item.enclosure && item.enclosure.link.endsWith('.mp3'));
-          const breakAudio = episodes.length > 0 ? episodes[Math.floor(Math.random() * episodes.length)].enclosure.link : defaultBreakAudio;
-          player.src = breakAudio;
-          player.play();
-          player.onended = playResume;
-        })
-        .catch(() => {
-          player.src = defaultBreakAudio;
-          player.play();
-          player.onended = playResume;
-        });
-    }
+  player.src = breakSrc;
+  player.play();
+  player.onended = playResume;
+}
 
 
     function updateBreakInterval() {
