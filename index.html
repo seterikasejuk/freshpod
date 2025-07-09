@@ -82,7 +82,7 @@
       padding: 10px 15px;
       border: none;
       border-radius: 8px;
-      background-color: #d6f28f;
+      background-color: #e4e4e4;
       color: #333;
       font-size: 14px;
       cursor: pointer;
@@ -91,7 +91,7 @@
     }
 
     .skip-buttons button:hover {
-      background-color: #bfdb79;
+      background-color: #c4c0c0;
     }
   </style>
 </head>
@@ -145,7 +145,7 @@
     let customBreaks = [];
 
   function skip(seconds) {
-    audio.currentTime += seconds;
+    player.currentTime += seconds;
   }
 
     document.getElementById("breakUpload").addEventListener("change", event => {
