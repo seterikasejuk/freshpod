@@ -312,10 +312,19 @@ function insertBreakEpisode() {
   }
 
     // fallback break if no custom files
-  player.src = defaultBreakAudio;
+player.src = defaultBreakAudio;
+
+player.onloadedmetadata = () => {
   player.play();
-  player.onended = playResume;
-}
+};
+
+player.onended = playResume;
+
+player.onerror = () => {
+  showToast("⚠️ Failed to play break audio. Resuming episode.");
+  playResume();
+};
+
 
     function updateBreakInterval() {
       const minutes = parseInt(document.getElementById("intervalSelect").value);
