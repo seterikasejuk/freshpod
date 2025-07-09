@@ -289,23 +289,44 @@ function insertBreakEpisode() {
     player.onloadedmetadata = () => {
       player.currentTime = resumeTime;
       player.play();
-      resetBreakTimer();
+      resetBreakTimer(); // 🧼 ALWAYS reset after break ends
     };
   };
 
   player.pause();
   player.style.opacity = 0.3;
 
-  const breakSrc = customBreakFiles.length > 0
-    ? URL.createObjectURL(customBreakFiles[Math.floor(Math.random() * customBreakFiles.length)])
-    : defaultBreakAudio;
+  if (customBreaks.length > 0) {
+    const breakFile = customBreaks[Math.floor(Math.random() * customBreaks.length)];
+    const breakSrc = URL.createObjectURL(breakFile);
 
-  player.src = breakSrc;
-  player.play();
-  player.onended = () => {
-    URL.revokeObjectURL(breakSrc); // 🔥 clean up
-    playResume();
-  };
+    player.src = breakSrc;
+    player.play();
+    player.onended = () => {
+      URL.revokeObjectURL(breakSrc);
+      playResume();
+    };
+    return;
+  }
+
+  const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
+  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedURL)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
+
+  fetch(apiUrl)
+    .then(res => res.json())
+    .then(data => {
+      const episodes = data.items.filter(item => item.enclosure && item.enclosure.link.endsWith('.mp3'));
+      const breakAudio = episodes.length > 0 ? episodes[Math.floor(Math.random() * episodes.length)].enclosure.link : defaultBreakAudio;
+
+      player.src = breakAudio;
+      player.play();
+      player.onended = playResume;
+    })
+    .catch(() => {
+      player.src = defaultBreakAudio;
+      player.play();
+      player.onended = playResume;
+    });
 }
 
     function updateBreakInterval() {
