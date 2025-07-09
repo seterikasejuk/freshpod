@@ -103,6 +103,8 @@
   </div>
 
   <script>
+    const defaultBreakAudio = "https://server13.mp3quran.net/husr/112.mp3";
+
     let breakInterval = 20 * 60 * 1000;
     const player = document.getElementById("player");
     const countdownDisplay = document.getElementById("countdown");
@@ -296,8 +298,8 @@ function insertBreakEpisode() {
   player.pause();
   player.style.opacity = 0.3;
 
-  if (customBreaks.length > 0) {
-    const breakFile = customBreaks[Math.floor(Math.random() * customBreaks.length)];
+  if (customBreakFiles.length > 0) {
+    const breakFile = customBreakFiles[Math.floor(Math.random() * customBreakFiles.length)];
     const breakSrc = URL.createObjectURL(breakFile);
 
     player.src = breakSrc;
@@ -309,24 +311,20 @@ function insertBreakEpisode() {
     return;
   }
 
-    const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
-  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedURL)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
+    // fallback break if no custom files
+player.src = defaultBreakAudio;
 
-  fetch(apiUrl)
-    .then(res => res.json())
-    .then(data => {
-      const episodes = data.items.filter(item => item.enclosure && item.enclosure.link.endsWith('.mp3'));
-      const breakAudio = episodes.length > 0 ? episodes[Math.floor(Math.random() * episodes.length)].enclosure.link : defaultBreakAudio;
-      player.src = breakAudio;
-      player.play();
-      player.onended = playResume;
-    })
-    .catch(() => {
-      player.src = defaultBreakAudio;
-      player.play();
-      player.onended = playResume;
-    });
-}
+player.onloadedmetadata = () => {
+  player.play();
+};
+
+player.onended = playResume;
+
+player.onerror = () => {
+  showToast("⚠️ Failed to play break audio. Resuming episode.");
+  playResume();
+};
+
 
     function updateBreakInterval() {
       const minutes = parseInt(document.getElementById("intervalSelect").value);
