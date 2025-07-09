@@ -308,6 +308,15 @@ function insertBreakEpisode() {
     };
     return;
   }
+
+    const feedURL = breakFeeds[Math.floor(Math.random() * breakFeeds.length)];
+  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedURL)}&api_key=b1de5hx8lkootynqrn1v7dn34c555cbza5km9f01`;
+
+  fetch(apiUrl)
+    .then(res => res.json())
+    .then(data => {
+      const episodes = data.items.filter(item => item.enclosure && item.enclosure.link.endsWith('.mp3'));
+      const breakAudio = episodes.length > 0 ? episodes[Math.floor(Math.random() * episodes.length)].enclosure.link : defaultBreakAudio;
       player.src = breakAudio;
       player.play();
       player.onended = playResume;
