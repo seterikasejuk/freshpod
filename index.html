@@ -65,34 +65,6 @@
       from {bottom: 30px; opacity: 1;}
       to {bottom: 0; opacity: 0;}
     }
-        .player-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      font-family: sans-serif;
-    }
-
-    .skip-buttons {
-      display: flex;
-      gap: 20px;
-    }
-
-    .skip-buttons button {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 8px;
-      background-color: #e4e4e4;
-      color: #333;
-      font-size: 14px;
-      cursor: pointer;
-      box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.1);
-      transition: all 0.2s ease-in-out;
-    }
-
-    .skip-buttons button:hover {
-      background-color: #c4c0c0;
-    }
   </style>
 </head>
 <body>
@@ -120,14 +92,8 @@
 
   <ul id="episodeList"></ul>
 
-  <div class="player-container">
   <audio id="player" controls style="width: 100%; margin-top: 20px; transition: opacity 1s;"></audio>
-  <div class="skip-buttons">
-    <button onclick="skip(-10)">⏪ Back 10s</button>
-    <button onclick="skip(10)">⏩ Forward 10s</button>
-  </div>
-</div>
-  
+
   </div>
 
   <script>
@@ -142,19 +108,15 @@
     let episodeList = [];
     let currentIndex = -1;
     let skipBreak = false;
-    let customBreaks = [];
+    let customBreakFiles = [];
 
-  function skip(seconds) {
-    player.currentTime += seconds;
+document.getElementById("breakUpload").addEventListener("change", event => {
+  const files = Array.from(event.target.files).filter(file => file.type === "audio/mpeg");
+  if (files.length > 0) {
+    customBreakFiles = files; // save actual files, not URLs
+    showToast(`🎧 Uploaded ${customBreakFiles.length} custom break(s)!`);
   }
-
-    document.getElementById("breakUpload").addEventListener("change", event => {
-      const files = Array.from(event.target.files).filter(file => file.type === "audio/mpeg");
-      if (files.length > 0) {
-        customBreaks = files.map(file => URL.createObjectURL(file));
-        showToast(`🎧 Uploaded ${customBreaks.length} custom break(s)!`);
-      }
-    });
+});
 
     function showToast(message) {
       toast.textContent = message;
@@ -311,7 +273,7 @@
       }, breakInterval);
     }
 
-    function insertBreakEpisode() {
+function insertBreakEpisode() {
   const resumeURL = currentEpisodeURL;
   const resumeTime = player.currentTime;
 
@@ -328,15 +290,17 @@
   player.pause();
   player.style.opacity = 0.3;
 
-  const breakSrc = customBreaks.length > 0
-    ? customBreaks[Math.floor(Math.random() * customBreaks.length)]
+  const breakSrc = customBreakFiles.length > 0
+    ? URL.createObjectURL(customBreakFiles[Math.floor(Math.random() * customBreakFiles.length)])
     : defaultBreakAudio;
 
   player.src = breakSrc;
   player.play();
-  player.onended = playResume;
+  player.onended = () => {
+    URL.revokeObjectURL(breakSrc); // 🔥 clean up
+    playResume();
+  };
 }
-
 
     function updateBreakInterval() {
       const minutes = parseInt(document.getElementById("intervalSelect").value);
