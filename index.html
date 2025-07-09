@@ -65,6 +65,22 @@
       from {bottom: 30px; opacity: 1;}
       to {bottom: 0; opacity: 0;}
     }
+    
+    button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #d3d3d3;
+  color: #333;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: #bababa;
+}
+
   </style>
 </head>
 <body>
@@ -93,6 +109,10 @@
   <ul id="episodeList"></ul>
 
   <audio id="player" controls style="width: 100%; margin-top: 20px; transition: opacity 1s;"></audio>
+<div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
+  <button onclick="skipBackward()">⏪ 10s</button>
+  <button onclick="skipForward()">⏩ 10s</button>
+</div>
 
   </div>
 
@@ -313,6 +333,66 @@ function insertBreakEpisode() {
       const secs = Math.floor((remainingMs % 60000) / 1000);
       countdownDisplay.textContent = `⏱️ Break in: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
+
+    function skipBackward() {
+  if (player && !isNaN(player.currentTime)) {
+    player.currentTime = Math.max(0, player.currentTime - 10);
+  }
+}
+
+function skipForward() {
+  if (player && !isNaN(player.currentTime)) {
+    player.currentTime = Math.min(player.duration, player.currentTime + 10);
+  }
+}
+
+    document.addEventListener('keydown', function(event) {
+  // Prevent triggering when user is typing in input/textarea
+  const tag = event.target.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+
+  switch (event.key) {
+    case 'ArrowLeft':
+      skipBackward();
+      break;
+    case 'ArrowRight':
+      skipForward();
+      break;
+    case ' ':
+      event.preventDefault(); // prevent scrolling
+      togglePlayPause();
+      break;
+    case 'm':
+    case 'M':
+      toggleMute();
+      break;
+  }
+});
+
+function skipBackward() {
+  if (player && !isNaN(player.currentTime)) {
+    player.currentTime = Math.max(0, player.currentTime - 10);
+  }
+}
+
+function skipForward() {
+  if (player && !isNaN(player.currentTime)) {
+    player.currentTime = Math.min(player.duration, player.currentTime + 10);
+  }
+}
+
+function togglePlayPause() {
+  if (player.paused) {
+    player.play();
+  } else {
+    player.pause();
+  }
+}
+
+function toggleMute() {
+  player.muted = !player.muted;
+}
+
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
